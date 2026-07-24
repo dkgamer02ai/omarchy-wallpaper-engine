@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# Omarchy theme-set hook: after a theme change, Omarchy restarts its shell and
+# resets the background to the new theme's (opaque) image, which would cover the
+# live Wallpaper Engine wallpaper. This re-clears the background to transparent
+# and relaunches the saved wallpaper on top so it stays visible.
+#
+# Installed to ~/.config/omarchy/hooks/theme-set.d/ by install.sh.
+# Does nothing if the user has no live wallpaper set (or has stopped it).
+set -euo pipefail
+
+STATE_FILE="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy-we/current"
+[[ -s "$STATE_FILE" ]] || exit 0                      # no live wallpaper selected
+command -v omarchy-we >/dev/null 2>&1 || exit 0
+
+# Give the shell a moment to finish its restart/background reset first.
+sleep 1
+omarchy-we launch >/dev/null 2>&1 || true

@@ -1,0 +1,242 @@
+#!/usr/bin/env bash
+# omarchy-we — use Wallpaper Engine wallpapers as live Omarchy wallpapers.
+#
+# Renders Steam Workshop "Wallpaper Engine" wallpapers (scene / video) on the
+# Hyprland background layer via linux-wallpaperengine, and keeps Omarchy's own
+# Quickshell background out of the way by pointing it at a transparent image.
+#
+#   omarchy-we list                 List available wallpapers (index / type / title / id)
+#   omarchy-we set <query>          Set a wallpaper by index, workshop id, or title substring
+#   omarchy-we menu                 Pick a wallpaper from a graphical menu
+#   omarchy-we next | prev | random Cycle wallpapers
+#   omarchy-we launch               (Re)launch the saved wallpaper — used by autostart & hooks
+#   omarchy-we current              Show the current wallpaper
+#   omarchy-we stop                 Stop the live wallpaper and restore a normal Omarchy background
+#
+set -euo pipefail
+
+# ---- paths -----------------------------------------------------------------
+WE_BIN="linux-wallpaperengine"
+STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy-we"
+STATE_FILE="$STATE_DIR/current"
+TRANSPARENT_BG="$HOME/.config/omarchy/backgrounds/transparent.png"
+SCALING="${OMARCHY_WE_SCALING:-fill}"    # stretch | fit | fill | default
+FPS="${OMARCHY_WE_FPS:-}"                 # optional frame-rate cap
+mkdir -p "$STATE_DIR"
+
+# Steam Workshop content for Wallpaper Engine (app id 431960).
+find_workshop() {
+  local c
+  for c in \
+    "$HOME/.local/share/Steam/steamapps/workshop/content/431960" \
+    "$HOME/.steam/steam/steamapps/workshop/content/431960" \
+    "$HOME/.var/app/com.valvesoftware.Steam/data/Steam/steamapps/workshop/content/431960"; do
+    [[ -d "$c" ]] && { echo "$c"; return 0; }
+  done
+  return 1
+}
+WORKSHOP="$(find_workshop || true)"
+
+die() { echo "omarchy-we: $*" >&2; exit 1; }
+notify() { command -v omarchy-notification-send >/dev/null 2>&1 && omarchy-notification-send "$1" -t "${2:-2500}" || true; }
+
+[[ -n "$WORKSHOP" ]] || die "no Wallpaper Engine workshop folder found (is Wallpaper Engine installed via Steam?)"
+
+# ---- catalog ---------------------------------------------------------------
+# Emits TSV rows: id \t type \t title   (sorted by title, one row per wallpaper)
+catalog() {
+  WORKSHOP="$WORKSHOP" python3 - <<'PY'
+import json, os, sys
+root = os.environ["WORKSHOP"]
+rows = []
+for entry in os.scandir(root):
+    if not entry.is_dir():
+        continue
+    pj = os.path.join(entry.path, "project.json")
+    typ, title = "?", entry.name
+    if os.path.isfile(pj):
+        try:
+            d = json.load(open(pj, encoding="utf-8", errors="replace"))
+            typ = str(d.get("type", "?")).lower()
+            title = str(d.get("title", entry.name)).strip() or entry.name
+        except Exception:
+            pass
+    rows.append((entry.name, typ, title))
+rows.sort(key=lambda r: r[2].lower())
+for wid, typ, title in rows:
+    sys.stdout.write(f"{wid}\t{typ}\t{title}\n")
+PY
+}
+
+# Resolve a query (index number | workshop id | title substring) to a workshop id.
+resolve_id() {
+  local query="$1" line i=1
+  # exact workshop id
+  if [[ "$query" =~ ^[0-9]{6,}$ && -d "$WORKSHOP/$query" ]]; then
+    echo "$query"; return 0
+  fi
+  # 1-based list index
+  if [[ "$query" =~ ^[0-9]+$ ]]; then
+    catalog | awk -F'\t' -v n="$query" 'NR==n{print $1}'
+    return 0
+  fi
+  # case-insensitive title substring (first match)
+  catalog | awk -F'\t' -v q="${query,,}" 'BEGIN{IGNORECASE=1} index(tolower($3), q){print $1; exit}'
+}
+
+title_of() { catalog | awk -F'\t' -v id="$1" '$1==id{print $3; exit}'; }
+
+# ---- background handling ---------------------------------------------------
+ensure_transparent_asset() {
+  if [[ ! -f "$TRANSPARENT_BG" ]]; then
+    mkdir -p "$(dirname "$TRANSPARENT_BG")"
+    if command -v magick >/dev/null 2>&1; then
+      magick -size 1920x1080 xc:none "$TRANSPARENT_BG"
+    else
+      # 1x1 transparent PNG fallback (base64)
+      base64 -d > "$TRANSPARENT_BG" <<'B64'
+iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==
+B64
+    fi
+  fi
+}
+
+# Point Omarchy's Quickshell background at the transparent image so the live
+# wallpaper below it is visible.
+clear_omarchy_background() {
+  ensure_transparent_asset
+  omarchy-theme-bg-set "$TRANSPARENT_BG" >/dev/null 2>&1 || \
+    ln -nsf "$TRANSPARENT_BG" "$HOME/.local/state/omarchy/current/background"
+}
+
+# ---- linux-wallpaperengine -------------------------------------------------
+detect_screen() {
+  hyprctl monitors -j 2>/dev/null | python3 -c '
+import json,sys
+try: ms=json.load(sys.stdin)
+except Exception: ms=[]
+if ms:
+    print(next((m["name"] for m in ms if m.get("focused")), ms[0]["name"]))
+' 2>/dev/null
+}
+
+stop_we() { pkill -f "$WE_BIN" 2>/dev/null || true; }
+
+launch_we() {
+  local id="$1"
+  command -v "$WE_BIN" >/dev/null 2>&1 || die "$WE_BIN is not installed (yay -S linux-wallpaperengine-git)"
+  [[ -d "$WORKSHOP/$id" ]] || die "wallpaper id '$id' not found in $WORKSHOP"
+
+  local screen; screen="$(detect_screen)"
+  [[ -n "$screen" ]] || die "could not detect a monitor (is Hyprland running?)"
+
+  stop_we; sleep 0.3
+  clear_omarchy_background
+
+  local args=(--screen-root "$screen" --scaling "$SCALING" --silent)
+  [[ -n "$FPS" ]] && args+=(--fps "$FPS")
+  args+=("$WORKSHOP/$id")
+
+  # Detach fully so it survives this shell; wrap with uwsm-app to match Omarchy.
+  setsid -f uwsm-app -- "$WE_BIN" "${args[@]}" >/dev/null 2>&1 || \
+    setsid -f "$WE_BIN" "${args[@]}" >/dev/null 2>&1
+
+  echo "$id" > "$STATE_FILE"
+}
+
+# ---- commands --------------------------------------------------------------
+cmd_list() {
+  local i=1 id typ title
+  printf "%-4s %-7s %-40s %s\n" "#" "TYPE" "TITLE" "ID"
+  while IFS=$'\t' read -r id typ title; do
+    printf "%-4s %-7s %-40.40s %s\n" "$i" "$typ" "$title" "$id"
+    i=$((i+1))
+  done < <(catalog)
+}
+
+cmd_set() {
+  local query="${1:-}"; [[ -n "$query" ]] || die "usage: omarchy-we set <index|id|title>"
+  local id; id="$(resolve_id "$query")"
+  [[ -n "$id" ]] || die "no wallpaper matched '$query' (try: omarchy-we list)"
+  launch_we "$id"
+  notify "Wallpaper: $(title_of "$id")"
+  echo "Set wallpaper: $(title_of "$id")  [$id]"
+}
+
+cmd_launch() {
+  local id; id="$(cat "$STATE_FILE" 2>/dev/null || true)"
+  if [[ -z "$id" ]]; then
+    # No saved choice yet: pick the first wallpaper.
+    id="$(catalog | awk -F'\t' 'NR==1{print $1}')"
+    [[ -n "$id" ]] || die "no wallpapers available"
+  fi
+  launch_we "$id"
+}
+
+cmd_cycle() {
+  local dir="$1" cur idx total
+  mapfile -t IDS < <(catalog | cut -f1)
+  total=${#IDS[@]}; [[ $total -gt 0 ]] || die "no wallpapers available"
+  cur="$(cat "$STATE_FILE" 2>/dev/null || true)"
+  idx=-1
+  for i in "${!IDS[@]}"; do [[ "${IDS[$i]}" == "$cur" ]] && idx=$i && break; done
+  case "$dir" in
+    next)   idx=$(( (idx + 1) % total ));;
+    prev)   idx=$(( (idx - 1 + total) % total ));;
+    random) idx=$(( RANDOM % total ));;
+  esac
+  launch_we "${IDS[$idx]}"
+  notify "Wallpaper: $(title_of "${IDS[$idx]}")"
+  echo "Set wallpaper: $(title_of "${IDS[$idx]}")  [${IDS[$idx]}]"
+}
+
+cmd_menu() {
+  local menu chosen
+  for m in walker fuzzel wofi rofi; do command -v "$m" >/dev/null 2>&1 && { menu="$m"; break; }; done
+  [[ -n "${menu:-}" ]] || die "no menu tool found (install walker/fuzzel/wofi/rofi) — use 'omarchy-we set' instead"
+  local input; input="$(catalog | awk -F'\t' '{printf "%s\t%s  ·  %s\n", $1, $3, $2}')"
+  case "$menu" in
+    walker) chosen="$(printf '%s\n' "$input" | cut -f2- | walker --dmenu -p 'Wallpaper')";;
+    fuzzel) chosen="$(printf '%s\n' "$input" | cut -f2- | fuzzel --dmenu -p 'Wallpaper: ')";;
+    wofi)   chosen="$(printf '%s\n' "$input" | cut -f2- | wofi --dmenu -p 'Wallpaper')";;
+    rofi)   chosen="$(printf '%s\n' "$input" | cut -f2- | rofi -dmenu -p 'Wallpaper')";;
+  esac
+  [[ -n "${chosen:-}" ]] || exit 0
+  local title="${chosen%%  ·  *}"
+  cmd_set "$title"
+}
+
+cmd_current() {
+  local id; id="$(cat "$STATE_FILE" 2>/dev/null || true)"
+  [[ -n "$id" ]] || { echo "No live wallpaper set."; return 0; }
+  echo "$(title_of "$id")  [$id]"
+  pgrep -f "$WE_BIN" >/dev/null 2>&1 && echo "Status: running" || echo "Status: not running"
+}
+
+cmd_stop() {
+  stop_we
+  # Restore a normal, opaque Omarchy background from the current theme.
+  local bg
+  bg="$(find -L "$HOME/.local/state/omarchy/current/theme/backgrounds" -maxdepth 1 -type f \
+        \( -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.webp' \) 2>/dev/null | sort | head -1)"
+  if [[ -n "$bg" ]]; then
+    omarchy-theme-bg-set "$bg" >/dev/null 2>&1 || true
+    echo "Stopped live wallpaper; restored theme background."
+  else
+    echo "Stopped live wallpaper. (No theme background found to restore.)"
+  fi
+}
+
+# ---- dispatch --------------------------------------------------------------
+case "${1:-}" in
+  list)                 cmd_list;;
+  set)                  shift; cmd_set "${1:-}";;
+  menu)                 cmd_menu;;
+  next|prev|random)     cmd_cycle "$1";;
+  launch)               cmd_launch;;
+  current)              cmd_current;;
+  stop)                 cmd_stop;;
+  ""|-h|--help|help)
+    sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//';;
+  *) die "unknown command '$1' (try: omarchy-we help)";;
+esac
