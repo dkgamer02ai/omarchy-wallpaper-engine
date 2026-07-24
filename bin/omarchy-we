@@ -19,6 +19,9 @@ set -euo pipefail
 WE_BIN="linux-wallpaperengine"
 STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy-we"
 STATE_FILE="$STATE_DIR/current"
+CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/omarchy-we"
+PREVIEW_DIR="$CACHE_DIR/previews"       # symlinks: "<label>.<ext>" -> wallpaper preview
+MAP_FILE="$CACHE_DIR/map.tsv"           # "<label>\t<workshop-id>"
 TRANSPARENT_BG="$HOME/.config/omarchy/backgrounds/transparent.png"
 SCALING="${OMARCHY_WE_SCALING:-fill}"    # stretch | fit | fill | default
 FPS="${OMARCHY_WE_FPS:-}"                 # optional frame-rate cap
@@ -85,6 +88,72 @@ resolve_id() {
 }
 
 title_of() { catalog | awk -F'\t' -v id="$1" '$1==id{print $3; exit}'; }
+
+# Build a directory of preview images (symlinks named by a readable, unique
+# label) for the native Quickshell image selector, plus a label->id map.
+build_previews() {
+  mkdir -p "$PREVIEW_DIR" "$(dirname "$MAP_FILE")"
+  WORKSHOP="$WORKSHOP" PREVIEW_DIR="$PREVIEW_DIR" MAP_FILE="$MAP_FILE" python3 - <<'PY'
+import json, os, glob
+from collections import Counter
+root = os.environ["WORKSHOP"]; pdir = os.environ["PREVIEW_DIR"]; mapf = os.environ["MAP_FILE"]
+EXTS = ("jpg", "jpeg", "png", "gif", "bmp", "webp")
+
+# Drop stale entries so removed subscriptions disappear from the picker.
+for e in os.scandir(pdir):
+    if e.is_symlink() or e.is_file():
+        try: os.remove(e.path)
+        except OSError: pass
+
+items = []  # (id, type, title, preview_path, ext)
+for entry in os.scandir(root):
+    if not entry.is_dir():
+        continue
+    pj = os.path.join(entry.path, "project.json")
+    typ, title, prev = "?", entry.name, None
+    if os.path.isfile(pj):
+        try:
+            d = json.load(open(pj, encoding="utf-8", errors="replace"))
+            typ = str(d.get("type", "?")).lower()
+            title = str(d.get("title", "")).strip() or entry.name
+            p = str(d.get("preview", "")).strip()
+            if p and os.path.isfile(os.path.join(entry.path, p)):
+                prev = os.path.join(entry.path, p)
+        except Exception:
+            pass
+    if not prev:
+        cands = sorted(glob.glob(os.path.join(entry.path, "preview.*")))
+        prev = cands[0] if cands else None
+    if not prev:
+        continue
+    ext = os.path.splitext(prev)[1].lstrip(".").lower()
+    if ext not in EXTS:
+        continue
+    items.append((entry.name, typ, title, prev, ext))
+
+items.sort(key=lambda r: r[2].lower())
+dup = Counter(r[2] for r in items)          # titles shared by >1 wallpaper
+used, rows = {}, []
+for wid, typ, title, prev, ext in items:
+    label = f"{title} ({typ})" if dup[title] > 1 else title
+    label = label.replace("/", "-").replace("\n", " ").strip()
+    base, n = label, 2
+    while label in used:                    # guarantee uniqueness
+        label = f"{base} ({n})"; n += 1
+    used[label] = wid
+    link = os.path.join(pdir, f"{label}.{ext}")
+    try:
+        if os.path.lexists(link): os.remove(link)
+        os.symlink(prev, link)
+    except OSError:
+        continue
+    rows.append((label, wid))
+
+with open(mapf, "w", encoding="utf-8") as f:
+    for label, wid in rows:
+        f.write(f"{label}\t{wid}\n")
+PY
+}
 
 # ---- background handling ---------------------------------------------------
 ensure_transparent_asset() {
@@ -193,20 +262,49 @@ cmd_cycle() {
   echo "Set wallpaper: $(title_of "${IDS[$idx]}")  [${IDS[$idx]}]"
 }
 
+# Native Omarchy Quickshell thumbnail picker (same UI as the built-in
+# background switcher). Falls back to a text menu if it isn't available.
 cmd_menu() {
+  if command -v omarchy-menu-images >/dev/null 2>&1 && command -v omarchy-shell >/dev/null 2>&1; then
+    build_previews
+    [[ -s "$MAP_FILE" ]] || die "no wallpaper previews found"
+
+    # Mark the current wallpaper as selected in the grid.
+    local cur sel="" lbl
+    cur="$(cat "$STATE_FILE" 2>/dev/null || true)"
+    if [[ -n "$cur" ]]; then
+      lbl="$(awk -F'\t' -v id="$cur" '$2==id{print $1; exit}' "$MAP_FILE")"
+      [[ -n "$lbl" ]] && sel="$(find -L "$PREVIEW_DIR" -maxdepth 1 -name "$lbl.*" -print -quit 2>/dev/null)"
+    fi
+
+    local args=(--print-name --show-labels --filterable --lazy-thumbnails)
+    [[ -n "$sel" ]] && args+=(--selected "$sel")
+
+    local name id
+    name="$(omarchy-menu-images "${args[@]}" "$PREVIEW_DIR")"
+    [[ -n "$name" ]] || exit 0                       # cancelled
+    id="$(awk -F'\t' -v n="$name" '$1==n{print $2; exit}' "$MAP_FILE")"
+    [[ -n "$id" ]] || die "could not map selection '$name' to a wallpaper"
+    launch_we "$id"
+    notify "Wallpaper: $(title_of "$id")"
+    echo "Set wallpaper: $(title_of "$id")  [$id]"
+    return 0
+  fi
+
+  # Fallback: text dmenu. On walker, -H hides the F1–F4 quick-activation
+  # buttons so Enter is the only selection path.
   local menu chosen
   for m in walker fuzzel wofi rofi; do command -v "$m" >/dev/null 2>&1 && { menu="$m"; break; }; done
-  [[ -n "${menu:-}" ]] || die "no menu tool found (install walker/fuzzel/wofi/rofi) — use 'omarchy-we set' instead"
-  local input; input="$(catalog | awk -F'\t' '{printf "%s\t%s  ·  %s\n", $1, $3, $2}')"
+  [[ -n "${menu:-}" ]] || die "no picker found (need omarchy-menu-images or walker/fuzzel/wofi/rofi)"
+  local input; input="$(catalog | awk -F'\t' '{printf "%s  ·  %s\n", $3, $2}')"
   case "$menu" in
-    walker) chosen="$(printf '%s\n' "$input" | cut -f2- | walker --dmenu -p 'Wallpaper')";;
-    fuzzel) chosen="$(printf '%s\n' "$input" | cut -f2- | fuzzel --dmenu -p 'Wallpaper: ')";;
-    wofi)   chosen="$(printf '%s\n' "$input" | cut -f2- | wofi --dmenu -p 'Wallpaper')";;
-    rofi)   chosen="$(printf '%s\n' "$input" | cut -f2- | rofi -dmenu -p 'Wallpaper')";;
+    walker) chosen="$(printf '%s\n' "$input" | walker --dmenu -H -p 'Wallpaper')";;
+    fuzzel) chosen="$(printf '%s\n' "$input" | fuzzel --dmenu -p 'Wallpaper: ')";;
+    wofi)   chosen="$(printf '%s\n' "$input" | wofi --dmenu -p 'Wallpaper')";;
+    rofi)   chosen="$(printf '%s\n' "$input" | rofi -dmenu -p 'Wallpaper')";;
   esac
   [[ -n "${chosen:-}" ]] || exit 0
-  local title="${chosen%%  ·  *}"
-  cmd_set "$title"
+  cmd_set "${chosen%%  ·  *}"
 }
 
 cmd_current() {

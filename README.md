@@ -38,7 +38,7 @@ omarchy-we list          # list your wallpapers: #  type  title  id
 omarchy-we set 3         # set by list number
 omarchy-we set 2555206224 # ...or by Steam Workshop id
 omarchy-we set "goku"    # ...or by title substring
-omarchy-we menu          # graphical picker (walker/fuzzel/wofi/rofi)
+omarchy-we menu          # native Omarchy thumbnail-grid picker (falls back to walker/fuzzel/wofi/rofi)
 omarchy-we next          # cycle to the next wallpaper
 omarchy-we random        # random wallpaper
 omarchy-we current       # show what's set and whether it's running
@@ -69,6 +69,7 @@ Environment variables (set them before `omarchy-we`, e.g. in the autostart line)
 - `linux-wallpaperengine --screen-root <output> --scaling fill --silent <workshop-folder>` renders the wallpaper on the Hyprland **background** layer.
 - Omarchy's Quickshell background is a fullscreen **opaque** surface on the same layer, so it would hide the live one. We point Omarchy's current background at a **transparent** PNG (`~/.config/omarchy/backgrounds/transparent.png`) — nothing in `/usr/share/omarchy` is ever modified — and relaunch the live wallpaper on top.
 - The `theme-set` hook reapplies this after a theme change (which otherwise resets the background and restarts the shell).
+- `omarchy-we menu` reuses Omarchy's own Quickshell image selector (`omarchy-menu-images`, the same UI as the built-in background switcher). It builds a thumbnail cache from each wallpaper's `preview.*` image under `~/.cache/omarchy-we/`, with de-duplicated labels mapped back to Steam Workshop IDs. If that isn't present it falls back to a `walker`/`fuzzel`/`wofi`/`rofi` text menu.
 
 ## Notes & limits
 
