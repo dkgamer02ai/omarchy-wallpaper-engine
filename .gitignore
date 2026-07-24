@@ -1,3 +1,6 @@
 # nothing user-specific is tracked; state lives in ~/.local/state/omarchy-we
 *.swp
 *~
+
+# local personal notes
+memory.md
