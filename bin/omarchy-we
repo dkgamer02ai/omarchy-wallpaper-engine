@@ -120,7 +120,10 @@ if ms:
 ' 2>/dev/null
 }
 
-stop_we() { pkill -f "$WE_BIN" 2>/dev/null || true; }
+# Stop only our own wallpaper instances. Matching the full invocation (binary
+# + --screen-root) rather than the bare binary name avoids killing unrelated
+# processes that merely mention "linux-wallpaperengine" in their command line.
+stop_we() { pkill -f "${WE_BIN}[^ ]* .*--screen-root" 2>/dev/null || true; }
 
 launch_we() {
   local id="$1"
