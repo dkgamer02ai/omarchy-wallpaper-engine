@@ -10,8 +10,10 @@
 #   omarchy-we menu                 Pick a wallpaper from a graphical menu
 #   omarchy-we next | prev | random Cycle wallpapers
 #   omarchy-we launch               (Re)launch the saved wallpaper — used by autostart & hooks
-#   omarchy-we current              Show the current wallpaper
+#   omarchy-we current [--json]     Show the current wallpaper (--json for machine output)
+#   omarchy-we list [--json]        List wallpapers (--json emits id/title/type/preview)
 #   omarchy-we stop                 Stop the live wallpaper and restore a normal Omarchy background
+#   omarchy-we ipc <verb>           Stable interface for bars/plugins: picker|entries|current|set|stop
 #
 set -euo pipefail
 
@@ -88,6 +90,76 @@ resolve_id() {
 }
 
 title_of() { catalog | awk -F'\t' -v id="$1" '$1==id{print $3; exit}'; }
+
+# ---- machine-readable output (IPC surface for bars / plugins) ---------------
+# JSON array of every wallpaper: {id,title,type,preview,current}. `preview` is
+# an absolute path to the wallpaper's own preview image (or null).
+entries_json() {
+  local cur; cur="$(cat "$STATE_FILE" 2>/dev/null || true)"
+  WORKSHOP="$WORKSHOP" CURRENT_ID="$cur" python3 - <<'PY'
+import json, os, glob, sys
+root = os.environ["WORKSHOP"]; cur = os.environ.get("CURRENT_ID", "")
+EXTS = ("jpg", "jpeg", "png", "gif", "bmp", "webp")
+out = []
+for entry in os.scandir(root):
+    if not entry.is_dir():
+        continue
+    pj = os.path.join(entry.path, "project.json")
+    typ, title, prev = "?", entry.name, None
+    if os.path.isfile(pj):
+        try:
+            d = json.load(open(pj, encoding="utf-8", errors="replace"))
+            typ = str(d.get("type", "?")).lower()
+            title = str(d.get("title", "")).strip() or entry.name
+            p = str(d.get("preview", "")).strip()
+            if p and os.path.isfile(os.path.join(entry.path, p)):
+                prev = os.path.join(entry.path, p)
+        except Exception:
+            pass
+    if not prev:
+        c = sorted(g for g in glob.glob(os.path.join(entry.path, "preview.*"))
+                   if g.rsplit(".", 1)[-1].lower() in EXTS)
+        prev = c[0] if c else None
+    out.append({"id": entry.name, "title": title, "type": typ,
+                "preview": prev, "current": entry.name == cur})
+out.sort(key=lambda r: r["title"].lower())
+json.dump(out, sys.stdout, ensure_ascii=False, indent=2)
+sys.stdout.write("\n")
+PY
+}
+
+# JSON object for the current selection: {id,title,type,preview,running}.
+current_json() {
+  local id running=false
+  id="$(cat "$STATE_FILE" 2>/dev/null || true)"
+  if pgrep -f "${WE_BIN}[^ ]* .*--screen-root" >/dev/null 2>&1; then running=true; fi
+  ID="$id" RUNNING="$running" WORKSHOP="$WORKSHOP" python3 - <<'PY'
+import json, os, glob, sys
+wid = os.environ.get("ID", ""); running = os.environ.get("RUNNING") == "true"
+root = os.environ["WORKSHOP"]
+EXTS = ("jpg", "jpeg", "png", "gif", "bmp", "webp")
+title = typ = prev = None
+if wid:
+    p = os.path.join(root, wid); pj = os.path.join(p, "project.json")
+    if os.path.isfile(pj):
+        try:
+            d = json.load(open(pj, encoding="utf-8", errors="replace"))
+            typ = str(d.get("type", "?")).lower()
+            title = str(d.get("title", "")).strip() or wid
+            pv = str(d.get("preview", "")).strip()
+            if pv and os.path.isfile(os.path.join(p, pv)):
+                prev = os.path.join(p, pv)
+        except Exception:
+            pass
+    if prev is None:
+        c = sorted(g for g in glob.glob(os.path.join(p, "preview.*"))
+                   if g.rsplit(".", 1)[-1].lower() in EXTS)
+        prev = c[0] if c else None
+json.dump({"id": wid or None, "title": title, "type": typ,
+           "preview": prev, "running": running}, sys.stdout, ensure_ascii=False)
+sys.stdout.write("\n")
+PY
+}
 
 # Build a directory of preview images (symlinks named by a readable, unique
 # label) for the native Quickshell image selector, plus a label->id map.
@@ -328,16 +400,32 @@ cmd_stop() {
   fi
 }
 
+# Stable IPC surface for bars / shell plugins. Mirrors the "ipc <verb>" shape
+# a bar already uses, e.g.  omarchy-we ipc picker  /  omarchy-we ipc entries.
+cmd_ipc() {
+  local sub="${1:-}"; shift || true
+  case "$sub" in
+    entries)      entries_json;;                    # JSON list of all wallpapers
+    current)      current_json;;                    # JSON of the active wallpaper
+    set)          cmd_set "${1:-}";;                # apply by id/index/title
+    picker|menu)  cmd_menu;;                        # open the thumbnail picker
+    stop)         cmd_stop;;                        # stop the live wallpaper
+    ""|-h|--help) echo "usage: omarchy-we ipc {picker|entries|current|set <id>|stop}";;
+    *)            die "unknown ipc verb '$sub' (try: omarchy-we ipc --help)";;
+  esac
+}
+
 # ---- dispatch --------------------------------------------------------------
 case "${1:-}" in
-  list)                 cmd_list;;
+  list)                 shift; [[ "${1:-}" == "--json" ]] && entries_json || cmd_list;;
   set)                  shift; cmd_set "${1:-}";;
   menu)                 cmd_menu;;
   next|prev|random)     cmd_cycle "$1";;
   launch)               cmd_launch;;
-  current)              cmd_current;;
+  current)              shift; [[ "${1:-}" == "--json" ]] && current_json || cmd_current;;
   stop)                 cmd_stop;;
+  ipc)                  shift; cmd_ipc "$@";;
   ""|-h|--help|help)
-    sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//';;
+    sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//';;
   *) die "unknown command '$1' (try: omarchy-we help)";;
 esac

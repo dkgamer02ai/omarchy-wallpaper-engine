@@ -71,6 +71,45 @@ Environment variables (set them before `omarchy-we`, e.g. in the autostart line)
 - The `theme-set` hook reapplies this after a theme change (which otherwise resets the background and restarts the shell).
 - `omarchy-we menu` reuses Omarchy's own Quickshell image selector (`omarchy-menu-images`, the same UI as the built-in background switcher). It builds a thumbnail cache from each wallpaper's `preview.*` image under `~/.cache/omarchy-we/`, with de-duplicated labels mapped back to Steam Workshop IDs. If that isn't present it falls back to a `walker`/`fuzzel`/`wofi`/`rofi` text menu.
 
+## Integration (IPC) for bars & shell plugins
+
+`omarchy-we` exposes a small, stable interface so a status bar or shell can build
+its own animated-wallpaper picker on top of it (no need to shell out to the raw
+internals). It mirrors the familiar `ipc <verb>` shape:
+
+```bash
+omarchy-we ipc picker      # open the built-in thumbnail picker
+omarchy-we ipc entries     # JSON: every wallpaper (for building a custom grid)
+omarchy-we ipc current     # JSON: the active wallpaper
+omarchy-we ipc set <id>    # apply a wallpaper by Steam Workshop id (or index/title)
+omarchy-we ipc stop        # stop the live wallpaper, restore a static background
+```
+
+`ipc entries` (also `omarchy-we list --json`) returns:
+
+```json
+[
+  {
+    "id": "3239853514",
+    "title": "Dragon Ball - Goku Flying Nimbus 4k",
+    "type": "scene",
+    "preview": "/home/you/.local/share/Steam/steamapps/workshop/content/431960/3239853514/preview.gif",
+    "current": false
+  }
+]
+```
+
+`ipc current` (also `omarchy-we current --json`) returns:
+
+```json
+{ "id": "3239853514", "title": "…", "type": "scene", "preview": "/…/preview.gif", "running": true }
+```
+
+Fields: `id` = Steam Workshop id, `type` = `scene` \| `video` \| `web`, `preview` =
+absolute path to the wallpaper's own preview image (build your thumbnails from it) or
+`null`, `current`/`running` = booleans. A plugin renders `entries`, and on select calls
+`omarchy-we ipc set <id>`. Output is UTF-8 JSON; the contract is considered stable.
+
 ## Notes & limits
 
 - **Scene** and **video** wallpapers work. **Web** (HTML/JS) wallpapers may not render — `linux-wallpaperengine`'s web support is limited.
