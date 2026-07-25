@@ -117,6 +117,30 @@ absolute path to the wallpaper's own preview image (build your thumbnails from i
 - Audio is muted by default (`--silent`).
 - Multi-monitor: the wallpaper is applied to the focused/first monitor. Run one `linux-wallpaperengine` per output for per-screen wallpapers.
 
+## Coexisting with a custom bar / shell
+
+This project never edits third-party shell or bar configs (e.g. a custom Quickshell
+bar under `~/.config/quickshell/`). Those are often auto-updating deploys, so editing
+them would just cause merge conflicts on the next update. Everything here lives in your
+own files: `~/.local/bin`, `~/.config/hypr`, `~/.config/omarchy`, and `~/.cache/omarchy-we`.
+
+If your bar ships its own **static** wallpaper picker, the two coexist happily on
+separate keybindings — they just write the same Omarchy background, so **last write wins**:
+
+- Pick a live wallpaper here → the background goes transparent and the animation shows through.
+- Pick a **static** image in the other picker → it sets an opaque background that *covers*
+  the live wallpaper. The renderer keeps running underneath (using the GPU) until you stop it.
+
+So when you want to return to plain static wallpapers, run **`omarchy-we stop`** once — it
+kills the live renderer and restores a normal background. To go back to live, use the
+`omarchy-we` picker again.
+
+The keybinding that opens this picker lives in **your** `~/.config/hypr/bindings.lua`, e.g.:
+
+```lua
+o.bind("SUPER + SHIFT + W", "Wallpaper picker", "omarchy-we menu")
+```
+
 ## Uninstall
 
 ```bash
