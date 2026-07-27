@@ -19,7 +19,7 @@ https://github.com/Almamu/linux-wallpaperengine does the actual rendering; this 
 ## Install
 
 ```bash
-git clone https://github.com/<you>/omarchy-wallpaper-engine.git
+git clone https://github.com/dkgamer02ai/omarchy-wallpaper-engine.git
 cd omarchy-wallpaper-engine
 ./install.sh
 ```
