@@ -66,7 +66,7 @@ Environment variables (set them before `omarchy-we`, e.g. in the autostart line)
 
 ## How it works
 
-- `linux-wallpaperengine --screen-root <output> --scaling fill --silent <workshop-folder>` renders the wallpaper on the Hyprland **background** layer.
+- `linux-wallpaperengine --silent --screen-root <output> --bg <workshop-folder> --scaling fill` renders the wallpaper on the Hyprland **background** layer (one `--screen-root … --bg …` group per active monitor).
 - Omarchy's Quickshell background is a fullscreen **opaque** surface on the same layer, so it would hide the live one. We point Omarchy's current background at a **transparent** PNG (`~/.config/omarchy/backgrounds/transparent.png`) — nothing in `/usr/share/omarchy` is ever modified — and relaunch the live wallpaper on top.
 - The `theme-set` hook reapplies this after a theme change (which otherwise resets the background and restarts the shell).
 - `omarchy-we menu` reuses Omarchy's own Quickshell image selector (`omarchy-menu-images`, the same UI as the built-in background switcher). It builds a thumbnail cache from each wallpaper's `preview.*` image under `~/.cache/omarchy-we/`, with de-duplicated labels mapped back to Steam Workshop IDs. If that isn't present it falls back to a `walker`/`fuzzel`/`wofi`/`rofi` text menu.
@@ -115,7 +115,7 @@ absolute path to the wallpaper's own preview image (build your thumbnails from i
 - **Scene** and **video** wallpapers work. **Web** (HTML/JS) wallpapers may not render — `linux-wallpaperengine`'s web support is limited.
 - Live wallpapers use the GPU continuously. On a laptop/iGPU, cap the frame rate (`OMARCHY_WE_FPS=30`) or use `omarchy-we stop` on battery.
 - Audio is muted by default (`--silent`).
-- Multi-monitor: the wallpaper is applied to the focused/first monitor. Run one `linux-wallpaperengine` per output for per-screen wallpapers.
+- Multi-monitor: the wallpaper is rendered on **every** active monitor (one process drives all outputs, re-detected on each `set`/`launch`). The same wallpaper is used on each screen.
 
 ## Coexisting with a custom bar / shell
 

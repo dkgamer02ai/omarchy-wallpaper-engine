@@ -251,13 +251,16 @@ clear_omarchy_background() {
 }
 
 # ---- linux-wallpaperengine -------------------------------------------------
-detect_screen() {
+# All currently-active monitor names, one per line. hyprctl monitors lists only
+# enabled outputs, so disabled screens are correctly skipped.
+detect_screens() {
   hyprctl monitors -j 2>/dev/null | python3 -c '
 import json,sys
 try: ms=json.load(sys.stdin)
 except Exception: ms=[]
-if ms:
-    print(next((m["name"] for m in ms if m.get("focused")), ms[0]["name"]))
+for m in ms:
+    n=m.get("name","")
+    if n: print(n)
 ' 2>/dev/null
 }
 
@@ -271,15 +274,20 @@ launch_we() {
   command -v "$WE_BIN" >/dev/null 2>&1 || die "$WE_BIN is not installed (yay -S linux-wallpaperengine-git)"
   [[ -d "$WORKSHOP/$id" ]] || die "wallpaper id '$id' not found in $WORKSHOP"
 
-  local screen; screen="$(detect_screen)"
-  [[ -n "$screen" ]] || die "could not detect a monitor (is Hyprland running?)"
+  local screens; mapfile -t screens < <(detect_screens)
+  [[ ${#screens[@]} -gt 0 ]] || die "could not detect a monitor (is Hyprland running?)"
 
   stop_we; sleep 0.3
   clear_omarchy_background
 
-  local args=(--screen-root "$screen" --scaling "$SCALING" --silent)
+  # One process drives every monitor: repeat a per-screen group so each active
+  # output gets the same wallpaper. --scaling binds to the preceding --screen-root.
+  local args=(--silent)
   [[ -n "$FPS" ]] && args+=(--fps "$FPS")
-  args+=("$WORKSHOP/$id")
+  local s
+  for s in "${screens[@]}"; do
+    args+=(--screen-root "$s" --bg "$WORKSHOP/$id" --scaling "$SCALING")
+  done
 
   # Detach fully so it survives this shell; wrap with uwsm-app to match Omarchy.
   setsid -f uwsm-app -- "$WE_BIN" "${args[@]}" >/dev/null 2>&1 || \
