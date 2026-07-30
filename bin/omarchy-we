@@ -421,8 +421,9 @@ cmd_ipc() {
     current)      current_json;;                    # JSON of the active wallpaper
     set)          cmd_set "${1:-}";;                # apply by id/index/title
     picker|menu)  cmd_menu;;                        # open the thumbnail picker
-    stop)         cmd_stop;;                        # stop the live wallpaper
-    ""|-h|--help) echo "usage: omarchy-we ipc {version|picker|entries|current|set <id>|stop}";;
+    stop)         cmd_stop;;                        # stop the live wallpaper + restore a static bg
+    kill)         stop_we;;                         # stop ONLY the renderer (caller sets the bg)
+    ""|-h|--help) echo "usage: omarchy-we ipc {version|picker|entries|current|set <id>|stop|kill}";;
     *)            die "unknown ipc verb '$sub' (try: omarchy-we ipc --help)";;
   esac
 }
