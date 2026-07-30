@@ -13,7 +13,7 @@
 #   omarchy-we current [--json]     Show the current wallpaper (--json for machine output)
 #   omarchy-we list [--json]        List wallpapers (--json emits id/title/type/preview)
 #   omarchy-we stop                 Stop the live wallpaper and restore a normal Omarchy background
-#   omarchy-we ipc <verb>           Stable interface for bars/plugins: picker|entries|current|set|stop
+#   omarchy-we ipc <verb>           Stable interface for bars/plugins: version|picker|entries|current|set|stop
 #
 set -euo pipefail
 
@@ -410,15 +410,19 @@ cmd_stop() {
 
 # Stable IPC surface for bars / shell plugins. Mirrors the "ipc <verb>" shape
 # a bar already uses, e.g.  omarchy-we ipc picker  /  omarchy-we ipc entries.
+# Capability/version contract for third-party integrations (bars/plugins).
+# Bump WE_IPC_VERSION only on a breaking change to the ipc JSON shapes.
+WE_IPC_VERSION=1
 cmd_ipc() {
   local sub="${1:-}"; shift || true
   case "$sub" in
+    version)      printf '{"ipc":%s,"tool":"omarchy-we","commands":["version","entries","current","set","stop","picker"]}\n' "$WE_IPC_VERSION";;
     entries)      entries_json;;                    # JSON list of all wallpapers
     current)      current_json;;                    # JSON of the active wallpaper
     set)          cmd_set "${1:-}";;                # apply by id/index/title
     picker|menu)  cmd_menu;;                        # open the thumbnail picker
     stop)         cmd_stop;;                        # stop the live wallpaper
-    ""|-h|--help) echo "usage: omarchy-we ipc {picker|entries|current|set <id>|stop}";;
+    ""|-h|--help) echo "usage: omarchy-we ipc {version|picker|entries|current|set <id>|stop}";;
     *)            die "unknown ipc verb '$sub' (try: omarchy-we ipc --help)";;
   esac
 }

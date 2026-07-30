@@ -78,12 +78,19 @@ its own animated-wallpaper picker on top of it (no need to shell out to the raw
 internals). It mirrors the familiar `ipc <verb>` shape:
 
 ```bash
+omarchy-we ipc version     # JSON capability contract: {"ipc":1,...} (probe before use)
 omarchy-we ipc picker      # open the built-in thumbnail picker
 omarchy-we ipc entries     # JSON: every wallpaper (for building a custom grid)
 omarchy-we ipc current     # JSON: the active wallpaper
 omarchy-we ipc set <id>    # apply a wallpaper by Steam Workshop id (or index/title)
 omarchy-we ipc stop        # stop the live wallpaper, restore a static background
 ```
+
+**Capability probe:** integrations should run `omarchy-we ipc version` first and
+only enable the feature when it exits 0 and reports a compatible `ipc` contract
+(currently `1`). `entries`/`current`/`set` exit non-zero (with a message on stderr)
+on failure — treat a non-zero exit as an error, not an empty result. The `ipc`
+number is bumped only on a breaking change to these JSON shapes.
 
 `ipc entries` (also `omarchy-we list --json`) returns:
 
