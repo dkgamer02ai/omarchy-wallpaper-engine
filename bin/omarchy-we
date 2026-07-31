@@ -75,7 +75,7 @@ PY
 
 # Resolve a query (index number | workshop id | title substring) to a workshop id.
 resolve_id() {
-  local query="$1" line i=1
+  local query="$1"
   # exact workshop id
   if [[ "$query" =~ ^[0-9]{6,}$ && -d "$WORKSHOP/$query" ]]; then
     echo "$query"; return 0
@@ -391,7 +391,9 @@ cmd_current() {
   local id; id="$(cat "$STATE_FILE" 2>/dev/null || true)"
   [[ -n "$id" ]] || { echo "No live wallpaper set."; return 0; }
   echo "$(title_of "$id")  [$id]"
-  pgrep -f "$WE_BIN" >/dev/null 2>&1 && echo "Status: running" || echo "Status: not running"
+  # Match our own instance (binary + --screen-root), not any process that merely
+  # mentions the binary name — same guard as stop_we/current_json.
+  pgrep -f "${WE_BIN}[^ ]* .*--screen-root" >/dev/null 2>&1 && echo "Status: running" || echo "Status: not running"
 }
 
 cmd_stop() {
