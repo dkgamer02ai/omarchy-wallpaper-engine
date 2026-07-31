@@ -43,8 +43,10 @@ Either way the setup:
 
 `omarchy plugin add` has no post-install hook, so the plugin's `service` entry point
 (`Service.qml`) runs `install.sh --no-deps` the first time the shell loads it. Removing the
-plugin has no hook either — run `uninstall.sh` from the plugin folder before
-`omarchy plugin remove io.github.dkgamer02ai.wallpaper-engine`.
+plugin has no hook either, so run `uninstall.sh` from the plugin folder *before*
+`omarchy plugin remove io.github.dkgamer02ai.wallpaper-engine` to clear the autostart entry,
+the theme hook, and the menu row. If you forget, the menu row hides itself — it carries a
+`when` guard on the `omarchy-we` CLI existing — but the rest is left behind.
 
 ## Usage
 
