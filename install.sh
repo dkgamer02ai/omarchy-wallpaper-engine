@@ -10,7 +10,9 @@ set -euo pipefail
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BIN_SRC="$REPO_DIR/bin/omarchy-we"
 BIN_DST="$HOME/.local/bin/omarchy-we"
-HOOK_SRC="$REPO_DIR/hooks/theme-set"
+# 'omarchy hook install' names the hook after this file's basename, so the file
+# is named for where it lands rather than for the hook type.
+HOOK_SRC="$REPO_DIR/hooks/50-wallpaper-engine"
 AUTOSTART="$HOME/.config/hypr/autostart.lua"
 AUTOSTART_LINE='o.launch_on_start("omarchy-we launch")'
 TRANSPARENT_BG="$HOME/.config/omarchy/backgrounds/transparent.png"

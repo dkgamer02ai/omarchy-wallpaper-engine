@@ -22,7 +22,8 @@ info "Removing CLI symlink"
 rm -f "$BIN_DST"; ok "removed $BIN_DST"
 
 info "Removing theme-set hook"
-rm -f "$HOOK"; ok "removed hook"
+# Older installs landed the hook under its source basename, 'theme-set'.
+rm -f "$HOOK" "$(dirname "$HOOK")/theme-set"; ok "removed hook"
 
 if [[ -f "$AUTOSTART" ]]; then
   info "Removing autostart entry"
