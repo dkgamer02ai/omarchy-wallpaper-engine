@@ -14,6 +14,8 @@ HOOK_SRC="$REPO_DIR/hooks/theme-set"
 AUTOSTART="$HOME/.config/hypr/autostart.lua"
 AUTOSTART_LINE='o.launch_on_start("omarchy-we launch")'
 TRANSPARENT_BG="$HOME/.config/omarchy/backgrounds/transparent.png"
+MENU_EXT="$HOME/.config/omarchy/extensions/omarchy-menu.jsonc"
+MENU_ENTRY='  "style.wallpaper-engine": {"icon":"󰸉","label":"Wallpaper Engine","keywords":"live animated video scene we steam workshop","action":"omarchy-we menu"},'
 
 info()  { printf '\033[1;34m::\033[0m %s\n' "$*"; }
 ok()    { printf '\033[1;32m✓\033[0m %s\n'  "$*"; }
@@ -36,8 +38,11 @@ if [[ $INSTALL_DEPS -eq 1 ]] && ! command -v linux-wallpaperengine >/dev/null 2>
     warn "No AUR helper (yay/paru). Install linux-wallpaperengine-git manually, then rerun with --no-deps."
     exit 1
   fi
+elif command -v linux-wallpaperengine >/dev/null 2>&1; then
+  ok "linux-wallpaperengine already installed"
 else
-  command -v linux-wallpaperengine >/dev/null 2>&1 && ok "linux-wallpaperengine already installed"
+  warn "linux-wallpaperengine is missing — nothing will render until you install it:"
+  warn "    yay -S linux-wallpaperengine-git"
 fi
 
 # --- 2. cli ---------------------------------------------------------------
@@ -78,8 +83,29 @@ else
   ok "theme-set hook installed manually → $HOOK_DIR/50-wallpaper-engine"
 fi
 
+# --- 6. menu > Style entry ------------------------------------------------
+# Adds one row to the Omarchy menu that opens the thumbnail picker directly.
+info "Adding 'Wallpaper Engine' to menu > Style"
+mkdir -p "$(dirname "$MENU_EXT")"
+[[ -s "$MENU_EXT" ]] || printf '{\n}\n' > "$MENU_EXT"
+# Drop a previous block so reinstalls don't duplicate the row.
+sed -i '/omarchy-we-menu-start/,/omarchy-we-menu-end/d' "$MENU_EXT"
+if awk -v e="$MENU_ENTRY" '
+     /^}/ && !d { print "// omarchy-we-menu-start"; print e; print "// omarchy-we-menu-end"; d=1 }
+     { print }
+     END { exit !d }
+   ' "$MENU_EXT" > "$MENU_EXT.tmp"; then
+  mv "$MENU_EXT.tmp" "$MENU_EXT"
+  ok "menu entry added → $MENU_EXT"
+else
+  rm -f "$MENU_EXT.tmp"
+  warn "Could not find the closing '}' in $MENU_EXT — add this line yourself:"
+  printf '%s\n' "$MENU_ENTRY"
+fi
+
 echo
 ok "Done. Pick a wallpaper with:"
+echo "     menu > Style > Wallpaper Engine    # thumbnail picker"
 echo "     omarchy-we list        # see what you have"
 echo "     omarchy-we set <n>     # set by number, id, or title"
-echo "     omarchy-we menu        # graphical picker"
+echo "     omarchy-we menu        # same picker, from a terminal"

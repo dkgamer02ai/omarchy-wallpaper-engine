@@ -18,20 +18,38 @@ https://github.com/Almamu/linux-wallpaperengine does the actual rendering; this 
 
 ## Install
 
+As an Omarchy plugin:
+
+```bash
+yay -S linux-wallpaperengine-git       # the renderer; not installable from a plugin
+omarchy plugin add https://github.com/dkgamer02ai/omarchy-wallpaper-engine.git --enable
+```
+
+Or from a clone:
+
 ```bash
 git clone https://github.com/dkgamer02ai/omarchy-wallpaper-engine.git
 cd omarchy-wallpaper-engine
 ./install.sh
 ```
 
-The installer:
-1. installs `linux-wallpaperengine-git` from the AUR (skip with `--no-deps`),
+Either way the setup:
+1. installs `linux-wallpaperengine-git` from the AUR (`install.sh` only; skip with `--no-deps`),
 2. links the `omarchy-we` CLI into `~/.local/bin`,
 3. creates a transparent placeholder so Omarchy's background stops covering the live one,
 4. adds an autostart entry to `~/.config/hypr/autostart.lua`,
-5. installs an Omarchy `theme-set` hook so the live wallpaper is restored after theme switches.
+5. installs an Omarchy `theme-set` hook so the live wallpaper is restored after theme switches,
+6. adds **menu > Style > Wallpaper Engine**, which opens the thumbnail picker.
+
+`omarchy plugin add` has no post-install hook, so the plugin's `service` entry point
+(`Service.qml`) runs `install.sh --no-deps` the first time the shell loads it. Removing the
+plugin has no hook either — run `uninstall.sh` from the plugin folder before
+`omarchy plugin remove io.github.dkgamer02ai.wallpaper-engine`.
 
 ## Usage
+
+**menu > Style > Wallpaper Engine** opens the thumbnail picker directly. Everything is also
+available from the CLI:
 
 ```bash
 omarchy-we list          # list your wallpapers: #  type  title  id

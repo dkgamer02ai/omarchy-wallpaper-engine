@@ -7,6 +7,7 @@ BIN_DST="$HOME/.local/bin/omarchy-we"
 AUTOSTART="$HOME/.config/hypr/autostart.lua"
 HOOK="$HOME/.config/omarchy/hooks/theme-set.d/50-wallpaper-engine"
 STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy-we"
+MENU_EXT="$HOME/.config/omarchy/extensions/omarchy-menu.jsonc"
 
 info() { printf '\033[1;34m::\033[0m %s\n' "$*"; }
 ok()   { printf '\033[1;32m✓\033[0m %s\n'  "$*"; }
@@ -28,6 +29,12 @@ if [[ -f "$AUTOSTART" ]]; then
   # Drop our comment line and the launch line.
   sed -i '/omarchy-wallpaper-engine)/d; /omarchy-we launch/d' "$AUTOSTART"
   ok "cleaned $AUTOSTART"
+fi
+
+if [[ -f "$MENU_EXT" ]]; then
+  info "Removing menu > Style entry"
+  sed -i '/omarchy-we-menu-start/,/omarchy-we-menu-end/d' "$MENU_EXT"
+  ok "cleaned $MENU_EXT"
 fi
 
 info "Removing saved state"
