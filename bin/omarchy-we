@@ -27,6 +27,10 @@ MAP_FILE="$CACHE_DIR/map.tsv"           # "<label>\t<workshop-id>"
 TRANSPARENT_BG="$HOME/.config/omarchy/backgrounds/transparent.png"
 SCALING="${OMARCHY_WE_SCALING:-fill}"    # stretch | fit | fill | default
 FPS="${OMARCHY_WE_FPS:-}"                 # optional frame-rate cap
+# The picker's last tile stops the live wallpaper. Its label leads with ⏹ (a
+# high codepoint) so it sorts after every wallpaper title in the grid.
+STOP_LABEL="⏹ Stop Live Wallpaper"
+STOP_SENTINEL="__STOP__"
 mkdir -p "$STATE_DIR"
 
 # Steam Workshop content for Wallpaper Engine (app id 431960).
@@ -227,6 +231,21 @@ with open(mapf, "w", encoding="utf-8") as f:
 PY
 }
 
+# Append a synthetic "Stop" tile to the picker: a generated thumbnail whose
+# label sorts last, mapped to a sentinel that cmd_menu turns into a stop.
+# build_previews has already cleared PREVIEW_DIR and written MAP_FILE, so this
+# runs after it. No-op without magick (the tile can't be drawn); the grid still
+# works, just without a stop tile.
+add_stop_tile() {
+  command -v magick >/dev/null 2>&1 || return 0
+  local img="$PREVIEW_DIR/$STOP_LABEL.png"
+  magick -size 640x360 xc:'#181818' \
+    -fill '#d64545' -draw 'roundrectangle 270,120 370,240 14,14' \
+    -fill '#dddddd' -gravity south -pointsize 30 -annotate +0+28 'Stop Live Wallpaper' \
+    "$img" 2>/dev/null || return 0
+  printf '%s\t%s\n' "$STOP_LABEL" "$STOP_SENTINEL" >> "$MAP_FILE"
+}
+
 # ---- background handling ---------------------------------------------------
 ensure_transparent_asset() {
   if [[ ! -f "$TRANSPARENT_BG" ]]; then
@@ -348,6 +367,7 @@ cmd_menu() {
   if command -v omarchy-menu-images >/dev/null 2>&1 && command -v omarchy-shell >/dev/null 2>&1; then
     build_previews
     [[ -s "$MAP_FILE" ]] || die "no wallpaper previews found"
+    add_stop_tile                                    # a "Stop" tile as the last grid item
 
     # Mark the current wallpaper as selected in the grid.
     local cur sel="" lbl
@@ -360,11 +380,16 @@ cmd_menu() {
     local args=(--print-name --show-labels --filterable --lazy-thumbnails)
     [[ -n "$sel" ]] && args+=(--selected "$sel")
 
+    # LC_ALL=C so the picker sorts tile filenames by byte, not glibc collation
+    # (which ignores the leading symbol and would file the ⏹ tile mid-grid under
+    # "S"). Byte order puts the ⏹ tile (0xE2…) after every ASCII title, i.e.
+    # last. Labels reach the UI as base64, so the locale only affects the sort.
     local name id
-    name="$(omarchy-menu-images "${args[@]}" "$PREVIEW_DIR")"
+    name="$(LC_ALL=C omarchy-menu-images "${args[@]}" "$PREVIEW_DIR")"
     [[ -n "$name" ]] || exit 0                       # cancelled
     id="$(awk -F'\t' -v n="$name" '$1==n{print $2; exit}' "$MAP_FILE")"
     [[ -n "$id" ]] || die "could not map selection '$name' to a wallpaper"
+    [[ "$id" == "$STOP_SENTINEL" ]] && { cmd_stop; return 0; }
     launch_we "$id"
     notify "Wallpaper: $(title_of "$id")"
     echo "Set wallpaper: $(title_of "$id")  [$id]"

@@ -22,13 +22,10 @@ MENU_EXT="$HOME/.config/omarchy/extensions/omarchy-menu.jsonc"
 # outlive the thing it launches. `test -x` (not `command -v`) so a dangling
 # symlink left by a plugin remove — the CLI lived inside the deleted folder —
 # also hides the row instead of firing a "command not found".
-# Both rows are gated only on the CLI existing (so a plugin remove hides them).
-# The stop row is NOT guarded on "is a wallpaper running": a pgrep pattern in a
-# menu `when` would self-match the shell running the guard (its own cmdline
-# contains the pattern), so it would always show. `omarchy-we stop` is a no-op
-# when nothing is live, so an always-visible stop row is harmless.
-MENU_ENTRY='  "style.wallpaper-engine": {"icon":"󰸉","label":"Wallpaper Engine","keywords":"live animated video scene we steam workshop","when":"test -x \"$(command -v omarchy-we)\"","action":"omarchy-we menu"},
-  "style.wallpaper-engine-stop": {"icon":"󰓛","label":"Stop Live Wallpaper","keywords":"wallpaper engine stop static disable live we","when":"test -x \"$(command -v omarchy-we)\"","action":"omarchy-we stop"},'
+# One Style row that opens the picker. `when` hides it if the CLI is gone (a
+# plugin remove leaves a dangling symlink). Stopping lives inside the picker as
+# its last tile, so no separate stop row is needed.
+MENU_ENTRY='  "style.wallpaper-engine": {"icon":"󰸉","label":"Wallpaper Engine","keywords":"live animated video scene we steam workshop","when":"test -x \"$(command -v omarchy-we)\"","action":"omarchy-we menu"},'
 
 info()  { printf '\033[1;34m::\033[0m %s\n' "$*"; }
 ok()    { printf '\033[1;32m✓\033[0m %s\n'  "$*"; }

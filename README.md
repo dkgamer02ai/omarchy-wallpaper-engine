@@ -52,9 +52,9 @@ the theme hook, and the menu row. If you forget, the menu row hides itself — i
 
 ## Usage
 
-**menu > Style > Wallpaper Engine** opens the thumbnail picker directly, and **menu > Style >
-Stop Live Wallpaper** stops it and restores a normal background. Everything is also available
-from the CLI:
+**menu > Style > Wallpaper Engine** opens the thumbnail picker directly; its last tile,
+**⏹ Stop Live Wallpaper**, stops the live wallpaper and restores a normal background.
+Everything is also available from the CLI:
 
 ```bash
 omarchy-we list          # list your wallpapers: #  type  title  id
