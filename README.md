@@ -4,6 +4,8 @@
 
 Use your **[Wallpaper Engine](https://store.steampowered.com/app/431960/Wallpaper_Engine/)** wallpapers (the animated *scene* and *video* ones from the Steam Workshop) as **live wallpapers on [Omarchy](https://omarchy.org/)**.
 
+![Demo](demo.gif)
+
 Omarchy 4 draws its wallpaper through its Quickshell shell, which only understands static images. This project renders your Wallpaper Engine content on the Hyprland background layer with [`linux-wallpaperengine`](https://github.com/Almamu/linux-wallpaperengine) and gets Omarchy's own background out of the way, so the animation shows through — and survives theme switches and reboots.
 
 https://github.com/Almamu/linux-wallpaperengine does the actual rendering; this repo is the Omarchy glue around it.
@@ -50,8 +52,9 @@ the theme hook, and the menu row. If you forget, the menu row hides itself — i
 
 ## Usage
 
-**menu > Style > Wallpaper Engine** opens the thumbnail picker directly. Everything is also
-available from the CLI:
+**menu > Style > Wallpaper Engine** opens the thumbnail picker directly, and **menu > Style >
+Stop Live Wallpaper** stops it and restores a normal background. Everything is also available
+from the CLI:
 
 ```bash
 omarchy-we list          # list your wallpapers: #  type  title  id

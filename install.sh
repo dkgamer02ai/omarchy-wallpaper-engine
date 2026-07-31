@@ -22,7 +22,13 @@ MENU_EXT="$HOME/.config/omarchy/extensions/omarchy-menu.jsonc"
 # outlive the thing it launches. `test -x` (not `command -v`) so a dangling
 # symlink left by a plugin remove — the CLI lived inside the deleted folder —
 # also hides the row instead of firing a "command not found".
-MENU_ENTRY='  "style.wallpaper-engine": {"icon":"󰸉","label":"Wallpaper Engine","keywords":"live animated video scene we steam workshop","when":"test -x \"$(command -v omarchy-we)\"","action":"omarchy-we menu"},'
+# Both rows are gated only on the CLI existing (so a plugin remove hides them).
+# The stop row is NOT guarded on "is a wallpaper running": a pgrep pattern in a
+# menu `when` would self-match the shell running the guard (its own cmdline
+# contains the pattern), so it would always show. `omarchy-we stop` is a no-op
+# when nothing is live, so an always-visible stop row is harmless.
+MENU_ENTRY='  "style.wallpaper-engine": {"icon":"󰸉","label":"Wallpaper Engine","keywords":"live animated video scene we steam workshop","when":"test -x \"$(command -v omarchy-we)\"","action":"omarchy-we menu"},
+  "style.wallpaper-engine-stop": {"icon":"󰓛","label":"Stop Live Wallpaper","keywords":"wallpaper engine stop static disable live we","when":"test -x \"$(command -v omarchy-we)\"","action":"omarchy-we stop"},'
 
 info()  { printf '\033[1;34m::\033[0m %s\n' "$*"; }
 ok()    { printf '\033[1;32m✓\033[0m %s\n'  "$*"; }
@@ -97,8 +103,10 @@ mkdir -p "$(dirname "$MENU_EXT")"
 [[ -s "$MENU_EXT" ]] || printf '{\n}\n' > "$MENU_EXT"
 # Drop a previous block so reinstalls don't duplicate the row.
 sed -i '/omarchy-we-menu-start/,/omarchy-we-menu-end/d' "$MENU_EXT"
-if awk -v e="$MENU_ENTRY" '
-     /^}/ && !d { print "// omarchy-we-menu-start"; print e; print "// omarchy-we-menu-end"; d=1 }
+# Pass the entry via the environment, not `awk -v`: -v runs C-escape processing
+# and would turn the JSON's \" into a bare ", producing invalid JSONC.
+if MENU_ENTRY="$MENU_ENTRY" awk '
+     /^}/ && !d { print "// omarchy-we-menu-start"; print ENVIRON["MENU_ENTRY"]; print "// omarchy-we-menu-end"; d=1 }
      { print }
      END { exit !d }
    ' "$MENU_EXT" > "$MENU_EXT.tmp"; then
