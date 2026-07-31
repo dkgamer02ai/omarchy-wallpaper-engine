@@ -6,11 +6,31 @@
 #
 # Installed to ~/.config/omarchy/hooks/theme-set.d/ by install.sh.
 # Does nothing if the user has no live wallpaper set (or has stopped it).
+#
+# It also self-heals: `omarchy plugin remove` deletes the plugin folder but
+# Omarchy has no post-remove hook, so the CLI symlink dangles and the menu row
+# and autostart line linger. This hook is the one survivor that lives outside
+# the plugin folder, so on the next theme change it detects the gone CLI and
+# removes everything the install left behind, including itself.
 set -euo pipefail
+
+CLI="$(command -v omarchy-we 2>/dev/null || true)"
+
+# CLI missing, or a dangling symlink into a removed plugin folder → clean up.
+if [[ -z "$CLI" || ! -x "$CLI" ]]; then
+  AUTOSTART="$HOME/.config/hypr/autostart.lua"
+  MENU_EXT="$HOME/.config/omarchy/extensions/omarchy-menu.jsonc"
+  [[ -f "$AUTOSTART" ]] && sed -i '/omarchy-wallpaper-engine)/d; /omarchy-we launch/d' "$AUTOSTART"
+  [[ -f "$MENU_EXT" ]] && sed -i '/omarchy-we-menu-start/,/omarchy-we-menu-end/d' "$MENU_EXT"
+  # command -v skips a dangling symlink, so $CLI may be empty even when the stale
+  # symlink still sits at the standard path — remove it unconditionally.
+  rm -f "$HOME/.local/bin/omarchy-we" ${CLI:+"$CLI"}
+  rm -f "${BASH_SOURCE[0]}" "$(dirname "${BASH_SOURCE[0]}")/theme-set"   # delete this hook
+  exit 0
+fi
 
 STATE_FILE="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy-we/current"
 [[ -s "$STATE_FILE" ]] || exit 0                      # no live wallpaper selected
-command -v omarchy-we >/dev/null 2>&1 || exit 0
 
 # Give the shell a moment to finish its restart/background reset first.
 sleep 1

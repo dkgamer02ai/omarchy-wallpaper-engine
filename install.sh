@@ -19,8 +19,10 @@ TRANSPARENT_BG="$HOME/.config/omarchy/backgrounds/transparent.png"
 MENU_EXT="$HOME/.config/omarchy/extensions/omarchy-menu.jsonc"
 # `when` hides the row if the CLI is gone: `omarchy plugin remove` deletes the
 # plugin folder but has no hook to run uninstall.sh, so the row would otherwise
-# outlive the thing it launches.
-MENU_ENTRY='  "style.wallpaper-engine": {"icon":"󰸉","label":"Wallpaper Engine","keywords":"live animated video scene we steam workshop","when":"command -v omarchy-we","action":"omarchy-we menu"},'
+# outlive the thing it launches. `test -x` (not `command -v`) so a dangling
+# symlink left by a plugin remove — the CLI lived inside the deleted folder —
+# also hides the row instead of firing a "command not found".
+MENU_ENTRY='  "style.wallpaper-engine": {"icon":"󰸉","label":"Wallpaper Engine","keywords":"live animated video scene we steam workshop","when":"test -x \"$(command -v omarchy-we)\"","action":"omarchy-we menu"},'
 
 info()  { printf '\033[1;34m::\033[0m %s\n' "$*"; }
 ok()    { printf '\033[1;32m✓\033[0m %s\n'  "$*"; }
