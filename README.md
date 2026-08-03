@@ -41,7 +41,7 @@ Either way the setup:
 3. creates a transparent placeholder so Omarchy's background stops covering the live one,
 4. adds an autostart entry to `~/.config/hypr/autostart.lua`,
 5. installs an Omarchy `theme-set` hook so the live wallpaper is restored after theme switches,
-6. adds **menu > Style > Wallpaper Engine**, which opens the thumbnail picker.
+6. adds **menu > Style > Wallpaper Engine**, which opens the Omatrix dial picker.
 
 `omarchy plugin add` has no post-install hook, so the plugin's `service` entry point
 (`Service.qml`) runs `install.sh --no-deps` the first time the shell loads it. Removing the
@@ -52,8 +52,11 @@ the theme hook, and the menu row. If you forget, the menu row hides itself — i
 
 ## Usage
 
-**menu > Style > Wallpaper Engine** opens the thumbnail picker directly; its last tile,
-**⏹ Stop Live Wallpaper**, stops the live wallpaper and restores a normal background.
+**menu > Style > Wallpaper Engine** opens **Omatrix**, an Omnitrix-style semicircular dial:
+spin it with scroll / arrow keys / drag, and the focused wallpaper drives a large looping
+preview. Its last tile, **⏹ Stop Live Wallpaper**, stops the live wallpaper and restores a
+normal background. Omatrix needs the plugin install (`omarchy plugin add`); when it can't be
+summoned (a plain `./install.sh`, or a non-Omarchy shell) it falls back to the grid picker.
 Everything is also available from the CLI:
 
 ```bash
@@ -61,6 +64,7 @@ omarchy-we list          # list your wallpapers: #  type  title  id
 omarchy-we set 3         # set by list number
 omarchy-we set 2555206224 # ...or by Steam Workshop id
 omarchy-we set "goku"    # ...or by title substring
+omarchy-we omatrix       # Omatrix dial overlay (falls back to the grid picker)
 omarchy-we menu          # native Omarchy thumbnail-grid picker (falls back to walker/fuzzel/wofi/rofi)
 omarchy-we next          # cycle to the next wallpaper
 omarchy-we random        # random wallpaper
@@ -75,7 +79,7 @@ Your choice is saved to `~/.local/state/omarchy-we/current` and re-applied on ev
 Add to `~/.config/hypr/bindings.lua`:
 
 ```lua
-o.bind("SUPER + SHIFT + W", "Wallpaper picker", "omarchy-we menu")
+o.bind("SUPER + SHIFT + W", "Wallpaper picker", "omarchy-we omatrix")
 ```
 
 ### Tuning
@@ -93,6 +97,7 @@ Environment variables (set them before `omarchy-we`, e.g. in the autostart line)
 - Omarchy's Quickshell background is a fullscreen **opaque** surface on the same layer, so it would hide the live one. We point Omarchy's current background at a **transparent** PNG (`~/.config/omarchy/backgrounds/transparent.png`) — nothing in `/usr/share/omarchy` is ever modified — and relaunch the live wallpaper on top.
 - The `theme-set` hook reapplies this after a theme change (which otherwise resets the background and restarts the shell).
 - `omarchy-we menu` reuses Omarchy's own Quickshell image selector (`omarchy-menu-images`, the same UI as the built-in background switcher). It builds a thumbnail cache from each wallpaper's `preview.*` image under `~/.cache/omarchy-we/`, with de-duplicated labels mapped back to Steam Workshop IDs. If that isn't present it falls back to a `walker`/`fuzzel`/`wofi`/`rofi` text menu.
+- **Omatrix** (`omarchy-we omatrix`) is a Quickshell `overlay` plugin (`DialPicker.qml`) — a semicircular dial of wallpaper cards fed by `omarchy-we ipc entries`, applying via `omarchy-we set`. It only works on the Omarchy shell with the plugin registered; `omarchy-we omatrix` falls back to `omarchy-we menu` otherwise.
 
 ## Integration (IPC) for bars & shell plugins
 
@@ -168,7 +173,7 @@ kills the live renderer and restores a normal background. To go back to live, us
 The keybinding that opens this picker lives in **your** `~/.config/hypr/bindings.lua`, e.g.:
 
 ```lua
-o.bind("SUPER + SHIFT + W", "Wallpaper picker", "omarchy-we menu")
+o.bind("SUPER + SHIFT + W", "Wallpaper picker", "omarchy-we omatrix")
 ```
 
 ## Uninstall
