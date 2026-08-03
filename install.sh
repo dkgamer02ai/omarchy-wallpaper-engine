@@ -25,7 +25,7 @@ MENU_EXT="$HOME/.config/omarchy/extensions/omarchy-menu.jsonc"
 # One Style row that opens the picker. `when` hides it if the CLI is gone (a
 # plugin remove leaves a dangling symlink). Stopping lives inside the picker as
 # its last tile, so no separate stop row is needed.
-MENU_ENTRY='  "style.wallpaper-engine": {"icon":"󰸉","label":"Wallpaper Engine","keywords":"live animated video scene we steam workshop","when":"test -x \"$(command -v omarchy-we)\"","action":"omarchy-we menu"},'
+MENU_ENTRY='  "style.wallpaper-engine": {"icon":"󰸉","label":"Wallpaper Engine","keywords":"live animated video scene we steam workshop omatrix dial","when":"test -x \"$(command -v omarchy-we)\"","action":"omarchy-we omatrix"},'
 
 info()  { printf '\033[1;34m::\033[0m %s\n' "$*"; }
 ok()    { printf '\033[1;32m✓\033[0m %s\n'  "$*"; }

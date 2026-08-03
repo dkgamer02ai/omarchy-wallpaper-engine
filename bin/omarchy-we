@@ -361,6 +361,18 @@ cmd_cycle() {
   echo "Set wallpaper: $(title_of "${IDS[$idx]}")  [${IDS[$idx]}]"
 }
 
+# Omatrix: the semicircular dial overlay (only available when installed as a
+# registered plugin). Falls back to the grid picker when the overlay can't be
+# summoned (e.g. a plain ./install.sh dev install, or a non-Omarchy shell).
+OMATRIX_ID="io.github.dkgamer02ai.wallpaper-engine"
+cmd_omatrix() {
+  if command -v omarchy-shell >/dev/null 2>&1 \
+     && omarchy-shell shell summon "$OMATRIX_ID" '{}' >/dev/null 2>&1; then
+    return 0
+  fi
+  cmd_menu
+}
+
 # Native Omarchy Quickshell thumbnail picker (same UI as the built-in
 # background switcher). Falls back to a text menu if it isn't available.
 cmd_menu() {
@@ -460,6 +472,7 @@ case "${1:-}" in
   list)                 shift; [[ "${1:-}" == "--json" ]] && entries_json || cmd_list;;
   set)                  shift; cmd_set "${1:-}";;
   menu)                 cmd_menu;;
+  omatrix)              cmd_omatrix;;
   next|prev|random)     cmd_cycle "$1";;
   launch)               cmd_launch;;
   current)              shift; [[ "${1:-}" == "--json" ]] && current_json || cmd_current;;

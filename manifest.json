@@ -7,9 +7,12 @@
   "license": "MIT",
   "description": "Use Steam Wallpaper Engine wallpapers as live Omarchy wallpapers. Adds menu > Style > Wallpaper Engine, which opens the thumbnail picker.",
   "kinds": [
-    "service"
+    "service",
+    "overlay"
   ],
+  "keepLoaded": true,
   "entryPoints": {
-    "service": "Service.qml"
+    "service": "Service.qml",
+    "overlay": "DialPicker.qml"
   }
 }
