@@ -77,9 +77,13 @@ Your choice is saved to `~/.local/state/omarchy-we/current` and re-applied on ev
 ### Optional: a keybinding
 
 Add to `~/.config/hypr/bindings.lua`:
-
+#### Default Picker
 ```lua
-o.bind("SUPER + SHIFT + W", "Wallpaper picker", "omarchy-we omatrix")
+o.bind("SUPER + SHIFT + W", "Wallpaper Engine picker", "omarchy-we menu")
+```
+#### Omatrix Picker
+```lua
+o.bind("SUPER + SHIFT + W", "Wallpaper Engine picker", "omarchy-we omatrix")
 ```
 
 ### Tuning
@@ -173,7 +177,7 @@ kills the live renderer and restores a normal background. To go back to live, us
 The keybinding that opens this picker lives in **your** `~/.config/hypr/bindings.lua`, e.g.:
 
 ```lua
-o.bind("SUPER + SHIFT + W", "Wallpaper picker", "omarchy-we omatrix")
+o.bind("SUPER + SHIFT + W", "Wallpaper Engine picker", "omarchy-we omatrix")
 ```
 
 ## Uninstall
@@ -182,7 +186,9 @@ o.bind("SUPER + SHIFT + W", "Wallpaper picker", "omarchy-we omatrix")
 ./uninstall.sh          # removes CLI, hook, autostart, state; restores a normal background
 yay -R linux-wallpaperengine-git   # optional: remove the renderer too
 ```
-
+```bash
+omarchy plugin remove io.github.dkgamer02ai.wallpaper-engine 
+```
 ## Credits
 
 - [Almamu/linux-wallpaperengine](https://github.com/Almamu/linux-wallpaperengine) — the renderer doing all the heavy lifting.
