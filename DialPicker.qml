@@ -69,13 +69,13 @@ Item {
     return d
   }
 
-  function apply() {
-    var it = selectedItem()
+  function applyItem(it) {
     if (!it) return
     if (String(it.id) === "__STOP__") Quickshell.execDetached(["omarchy-we", "stop"])
     else Quickshell.execDetached(["omarchy-we", "set", String(it.id)])
     root.dismiss()
   }
+  function apply() { applyItem(selectedItem()) }
 
   // Load the catalog and append a Stop card as the last item on the ring.
   Process {
@@ -110,7 +110,6 @@ Item {
         GradientStop { position: 1.0; color: "#f206070a" }
       }
     }
-    MouseArea { anchors.fill: parent; onClicked: root.dismiss() }
 
     // ---- focused preview (top) ------------------------------------------
     Item {
@@ -243,7 +242,6 @@ Item {
               color: "#dfe3ea"; font.pixelSize: 11; elide: Text.ElideRight
             }
           }
-          MouseArea { anchors.fill: parent; onClicked: root.spin(root.wrapDelta(index)) }
         }
       }
     }
@@ -278,19 +276,23 @@ Item {
       acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
       onWheel: function (ev) { root.spin((ev.angleDelta.y + ev.angleDelta.x) < 0 ? 1 : -1) }
     }
-    // drag to spin
-    property real dragX: NaN
-    property real dragBase: 0
+    // mouse: drag to spin · left-click applies the selected card · right-click cancels
     MouseArea {
       anchors.fill: parent
-      acceptedButtons: Qt.LeftButton
-      propagateComposedEvents: true
-      onPressed: function (m) { panel.dragX = m.x; panel.dragBase = root.target; m.accepted = false }
+      acceptedButtons: Qt.LeftButton | Qt.RightButton
+      property real pressX: 0
+      property real baseTarget: 0
+      property bool moved: false
+      onPressed: function (m) { pressX = m.x; baseTarget = root.target; moved = false }
       onPositionChanged: function (m) {
-        if (!isNaN(panel.dragX)) root.target = panel.dragBase - (m.x - panel.dragX) / 60
+        if (!pressed) return
+        if (Math.abs(m.x - pressX) > 4) moved = true
+        root.target = baseTarget - (m.x - pressX) / 60
       }
-      onReleased: function (m) {
-        if (!isNaN(panel.dragX)) { panel.dragX = NaN; root.target = Math.round(root.target) }
+      onReleased: function (m) { if (moved) root.target = Math.round(root.target) }
+      onClicked: function (m) {
+        if (m.button === Qt.RightButton) root.dismiss()
+        else if (!moved) root.apply()
       }
     }
 
