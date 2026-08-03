@@ -106,8 +106,8 @@ Item {
     Rectangle {
       anchors.fill: parent
       gradient: Gradient {
-        GradientStop { position: 0.0; color: "#e60a0b0f" }
-        GradientStop { position: 1.0; color: "#f206070a" }
+        GradientStop { position: 0.0; color: "#0b0c11" }
+        GradientStop { position: 1.0; color: "#070809" }
       }
     }
 
@@ -208,12 +208,17 @@ Item {
             opacity: card.isSel ? 0.9 : 0; z: -1
           }
 
-          Image {
+          AnimatedImage {
             anchors.fill: parent
             visible: card.modelData.type !== "stop"
             source: card.modelData.preview ? "file://" + card.modelData.preview : ""
             fillMode: Image.PreserveAspectCrop
-            asynchronous: true; cache: true; sourceSize.width: 320
+            cache: true
+            // Play the cards near the focus (cheap); keep the rest on a mid
+            // frame so a gif's dark intro frame doesn't render as a black tile.
+            playing: Math.abs(card.rel) <= 3
+            onStatusChanged: if (status === AnimatedImage.Ready && !playing) currentFrame = Math.min(3, Math.max(0, frameCount - 1))
+            onCurrentFrameChanged: if (playing && frameCount > 1 && currentFrame >= frameCount - 1) currentFrame = 0
           }
           // stop face
           Rectangle {
